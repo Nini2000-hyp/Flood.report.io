@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="กรอกที่อยู่ ผู้ยื่นคำร้อง และแนบภาพขณะน้ำท่วมและหลังน้ำลด แล้วสร้าง PDF ไปพิมพ์แนบแบบคำร้อง">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>รายงานความเสียหายจากอุทกภัย</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&family=IBM+Plex+Sans+Thai:wght@500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* Layout: single column mobile form, one card per step, sticky action bar at the bottom */
+:root{
+  --bg:#EEF2F1; --surface:#FFFFFF; --ink:#13262B; --muted:#5A6E72; --line:#D3DDDC;
+  --accent:#0B5D6B; --accent-ink:#FFFFFF; --accent-soft:#DCEDEF;
+  --flood:#2F6FA3; --flood-soft:#E1ECF6; --dry:#8A6A2E; --dry-soft:#F3EBDA;
+  --danger:#B3261E; --ok:#2E7D4F;
+  --f-display:"IBM Plex Sans Thai","Sarabun",system-ui,sans-serif;
+  --f-body:"Sarabun","Noto Sans Thai",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1A1C; --surface:#172527; --ink:#E4EEEE; --muted:#9AB0B2; --line:#2B3E41;
+  --accent:#5FB7C4; --accent-ink:#06262B; --accent-soft:#1D3A3F;
+  --flood:#7FB2DD; --flood-soft:#1B2F42; --dry:#D7B26C; --dry-soft:#352B19;
+  --danger:#F2867E; --ok:#7CCB9C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1A1C; --surface:#172527; --ink:#E4EEEE; --muted:#9AB0B2; --line:#2B3E41;
+  --accent:#5FB7C4; --accent-ink:#06262B; --accent-soft:#1D3A3F;
+  --flood:#7FB2DD; --flood-soft:#1B2F42; --dry:#D7B26C; --dry-soft:#352B19;
+  --danger:#F2867E; --ok:#7CCB9C; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.6;margin:0}
+.wrap{max-width:620px;margin:0 auto;padding-inline:16px;padding-block:20px 120px;display:flex;flex-direction:column;gap:16px}
+header.top{display:flex;flex-direction:column;gap:6px;padding-block:8px 4px}
+.eyebrow{font-size:13px;letter-spacing:.04em;color:var(--accent);font-weight:600}
+h1{font-family:var(--f-display);font-size:26px;line-height:1.3;margin:0;text-wrap:balance}
+.lede{color:var(--muted);margin:0;font-size:16px}
+.privacy{display:flex;gap:10px;align-items:flex-start;background:var(--accent-soft);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:14.5px}
+.privacy svg{flex:none;margin-top:3px;color:var(--accent)}
+
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 16px;display:flex;flex-direction:column;gap:14px}
+.card h2{font-family:var(--f-display);font-size:19px;margin:0;display:flex;align-items:center;gap:10px}
+.step{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:15px;font-weight:700;flex:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field.full{grid-column:1/-1}
+label.lbl{font-weight:600;font-size:15.5px}
+.req{color:var(--danger)}
+.opt{color:var(--muted);font-weight:400;font-size:14px}
+input[type=text],input[type=tel],select{font:inherit;font-size:17px;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-height:48px}
+input:focus-visible,select:focus-visible,button:focus-visible,.status-opt input:focus-visible+span{outline:3px solid var(--accent);outline-offset:2px}
+.fixed{color:var(--muted);padding:11px 12px;border:1.5px dashed var(--line);border-radius:10px;min-height:48px}
+.err{color:var(--danger);font-size:14px;min-height:0}
+.invalid{border-color:var(--danger)!important}
+
+.status{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.status-opt{position:relative}
+.status-opt input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.status-opt span{display:flex;align-items:center;justify-content:center;text-align:center;min-height:52px;border:1.5px solid var(--line);border-radius:10px;font-weight:600;background:var(--bg);transition:background .15s,border-color .15s}
+.status-opt input:checked+span{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+.photo-group{display:flex;flex-direction:column;gap:10px;border-radius:12px;padding:12px;border:1px solid var(--line)}
+.photo-group.flood{background:var(--flood-soft)}
+.photo-group.dry{background:var(--dry-soft)}
+.pg-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.pg-title{font-weight:700;font-size:16.5px}
+.flood .pg-title{color:var(--flood)} .dry .pg-title{color:var(--dry)}
+.pg-count{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.thumb{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--line);max-width:100%}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .date{position:absolute;left:0;right:0;bottom:0;font-size:11.5px;padding:2px 6px;background:rgba(0,0,0,.55);color:#fff}
+.thumb button{position:absolute;top:4px;right:4px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:18px;line-height:1;cursor:pointer}
+.add{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border:1.5px dashed currentColor;border-radius:10px;font-weight:600;cursor:pointer;background:transparent;font:inherit;font-weight:600;width:100%}
+.flood .add{color:var(--flood)} .dry .add{color:var(--dry)}
+.add input{display:none}
+
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+.bar-in{max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:6px}
+.btn{font:inherit;font-family:var(--f-display);font-weight:600;font-size:18px;border:0;border-radius:12px;min-height:54px;padding:0 18px;cursor:pointer;width:100%}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.secondary{background:var(--accent-soft);color:var(--ink)}
+.btn:disabled{opacity:.6;cursor:progress}
+.msg{font-size:14.5px;text-align:center;min-height:1.4em;color:var(--muted)}
+.msg.bad{color:var(--danger)} .msg.good{color:var(--ok)}
+
+#result h2{justify-content:space-between}
+.pages{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px}
+.pages img{height:260px;width:auto;max-width:none;border:1px solid var(--line);border-radius:4px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.hint{color:var(--muted);font-size:14.5px;margin:0}
+@media (max-width:380px){.grid2{grid-template-columns:1fr}.status-opt span{font-size:15px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">จังหวัดระยอง · เอกสารแนบคำร้องขอรับการช่วยเหลือ</span>
+    <h1>รายงานความเสียหายจากอุทกภัย</h1>
+    <p class="lede">กรอกข้อมูลและแนบภาพบ้าน แล้วกดสร้าง PDF เพื่อนำไปพิมพ์แนบกับแบบคำร้อง</p>
+    <div class="privacy">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+      <span>ข้อมูลและรูปภาพอยู่ในโทรศัพท์ของคุณเท่านั้น ไม่มีการส่งไปเก็บที่ใด</span>
+    </div>
+  </header>
+
+  <form id="f" novalidate>
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <section class="card">
+      <h2><span class="step">1</span>ที่อยู่บ้านที่ได้รับความเสียหาย</h2>
+      <div class="grid2">
+        <div class="field"><label class="lbl" for="house">บ้านเลขที่ <span class="req">*</span></label><input id="house" type="text" autocomplete="off" placeholder="เช่น 45/2"></div>
+        <div class="field"><label class="lbl" for="moo">หมู่ที่ <span class="opt">(ถ้ามี)</span></label><input id="moo" type="text" inputmode="numeric" placeholder="เช่น 3"></div>
+        <div class="field full"><label class="lbl" for="soi">ซอย / ถนน <span class="opt">(ถ้ามี)</span></label><input id="soi" type="text" placeholder="เช่น ซอยเนินพระ 4 ถนนสุขุมวิท"></div>
+        <div class="field"><label class="lbl" for="tambon">ตำบล <span class="req">*</span></label><input id="tambon" type="text" placeholder="เช่น เนินพระ"></div>
+        <div class="field"><label class="lbl" for="amphoe">อำเภอ <span class="req">*</span></label>
+          <select id="amphoe">
+            <option value="">เลือกอำเภอ</option>
+            <option>เมืองระยอง</option><option>บ้านฉาง</option><option>แกลง</option><option>วังจันทร์</option>
+            <option>บ้านค่าย</option><option>ปลวกแดง</option><option>เขาชะเมา</option><option>นิคมพัฒนา</option>
+          </select></div>
+        <div class="field full"><span class="lbl">จังหวัด</span><div class="fixed">ระยอง</div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">2</span>ผู้ยื่นคำร้อง</h2>
+      <div class="field"><label class="lbl" for="name">ชื่อ-นามสกุล <span class="req">*</span></label><input id="name" type="text" autocomplete="name" placeholder="เช่น นางสมใจ ใจดี"></div>
+      <div class="field">
+        <span class="lbl" id="status-lbl">สถานะผู้ยื่นคำร้อง <span class="req">*</span></span>
+        <div class="status" role="radiogroup" aria-labelledby="status-lbl" id="status-wrap">
+          <label class="status-opt"><input type="radio" name="status" id="st-owner" value="เจ้าบ้าน"><span>เจ้าบ้าน</span></label>
+          <label class="status-opt"><input type="radio" name="status" id="st-tenant" value="ผู้เช่า"><span>ผู้เช่า</span></label>
+          <label class="status-opt"><input type="radio" name="status" id="st-resident" value="ผู้อาศัย"><span>ผู้อาศัย</span></label>
+        </div>
+      </div>
+      <div class="field" id="owner-field" hidden>
+        <label class="lbl" for="owner">ชื่อเจ้าบ้าน <span class="opt">(ไม่บังคับ)</span></label>
+        <input id="owner" type="text" placeholder="ถ้าทราบ ใส่ชื่อเจ้าบ้าน">
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">3</span>ภาพถ่ายบ้าน</h2>
+      <div class="photo-group flood" id="g-flood">
+        <div class="pg-head"><span class="pg-title">ภาพขณะน้ำท่วม</span><span class="pg-count" id="c-flood">0 ภาพ</span></div>
+        <div class="thumbs" id="t-flood"></div>
+        <label class="add"><input type="file" id="in-flood" accept="image/*" multiple>+ เพิ่มภาพขณะน้ำท่วม</label>
+      </div>
+      <div class="photo-group dry" id="g-dry">
+        <div class="pg-head"><span class="pg-title">ภาพหลังน้ำลด</span><span class="pg-count" id="c-dry">0 ภาพ</span></div>
+        <div class="thumbs" id="t-dry"></div>
+        <label class="add"><input type="file" id="in-dry" accept="image/*" multiple>+ เพิ่มภาพหลังน้ำลด</label>
+      </div>
+      <p class="hint">ถ่ายใหม่หรือเลือกจากอัลบั้มได้ ไม่จำกัดจำนวน เลือกหลายภาพพร้อมกันได้ ระบบจะใส่วันที่ถ่ายใต้ภาพให้ ถ้าภาพมีข้อมูลวันที่</p>
+    </section>
+
+    <section class="card" id="result" hidden>
+      <h2><span>ตัวอย่างเอกสาร</span><span class="pg-count" id="page-count"></span></h2>
+      <div class="pages" id="pages"></div>
+      <button type="button" class="btn secondary" id="save-again">บันทึก PDF อีกครั้ง</button>
+      <p class="hint">พิมพ์ทุกหน้า ลงลายมือชื่อในช่องท้ายเอกสาร แล้วแนบกับแบบคำร้อง</p>
+    </section>
+  </div>
+  </form>
+</div>
+
+<div class="bar"><div class="bar-in">
+  <button type="submit" form="f" class="btn primary" id="go">สร้าง PDF</button>
+  <div class="msg" id="msg" role="status" aria-live="polite"></div>
+</div></div>
+
+<script>
+(function(){
+const photos = { flood: [], dry: [] };
+const $ = id => document.getElementById(id);
+const TEXT_IDS = ['house','moo','soi','tambon','amphoe','name','owner'];
+let lastPdf = null, lastName = '';
+
+/* ---------- draft text (per device, optional) ---------- */
+function saveDraft(){ try{ const d={}; TEXT_IDS.forEach(k=>d[k]=$(k).value); d.status=getStatus(); localStorage.setItem('flood-draft',JSON.stringify(d)); }catch(e){} }
+function loadDraft(){ try{ const d=JSON.parse(localStorage.getItem('flood-draft')||'null'); if(!d) return;
+  TEXT_IDS.forEach(k=>{ if(d[k]) $(k).value=d[k]; });
+  if(d.status){ const r=document.querySelector('input[name=status][value="'+d.status+'"]'); if(r) r.checked=true; }
+}catch(e){} }
+function getStatus(){ const r=document.querySelector('input[name=status]:checked'); return r? r.value : ''; }
+function syncOwner(){ const s=getStatus(); $('owner-field').hidden = !(s==='ผู้เช่า'||s==='ผู้อาศัย'); }
+document.querySelectorAll('input[name=status]').forEach(r=>r.addEventListener('change',()=>{syncOwner();saveDraft();$('status-wrap').classList.remove('invalid');}));
+TEXT_IDS.forEach(k=>$(k).addEventListener('input',()=>{$(k).classList.remove('invalid');saveDraft();}));
+loadDraft(); syncOwner();
+
+/* ---------- EXIF date (JPEG DateTimeOriginal) ---------- */
+async function exifDate(file){
+  try{
+    const buf = await file.slice(0, 256*1024).arrayBuffer();
+    const v = new DataView(buf);
+    if(v.getUint16(0)!==0xFFD8) return null;
+    let off=2;
+    while(off+4<v.byteLength){
+      const marker=v.getUint16(off); const len=v.getUint16(off+2);
+      if(marker===0xFFE1 && v.getUint32(off+4)===0x45786966){
+        const t=off+10; const le=v.getUint16(t)===0x4949;
+        const u16=o=>v.getUint16(t+o,le), u32=o=>v.getUint32(t+o,le);
+        const readStr=(o,n)=>{let s='';for(let i=0;i<n;i++){const c=v.getUint8(t+o+i);if(!c)break;s+=String.fromCharCode(c);}return s;};
+        const findTag=(ifd,tag)=>{const n=u16(ifd);for(let i=0;i<n;i++){const e=ifd+2+i*12;if(u16(e)===tag)return e;}return -1;};
+        const ifd0=u32(4); let str=null;
+        const exPtr=findTag(ifd0,0x8769);
+        if(exPtr>=0){ const ex=u32(exPtr+8); const d=findTag(ex,0x9003); if(d>=0) str=readStr(u32(d+8),19); }
+        if(!str){ const d=findTag(ifd0,0x0132); if(d>=0) str=readStr(u32(d+8),19); }
+        if(!str) return null;
+        const m=str.match(/(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2})/); if(!m) return null;
+        const dt=new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]); return isNaN(dt)?null:dt;
+      }
+      if((marker&0xFF00)!==0xFF00) break;
+      off+=2+len;
+    }
+  }catch(e){}
+  return null;
+}
+const thDate = (d,withTime)=> d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}) + (withTime? ' '+d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})+' น.' : '');
+
+/* ---------- add photos ---------- */
+function loadImg(url){ return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url;}); }
+/* Each photo is shrunk once to a small JPEG blob; full-size originals are never kept in memory. */
+function toBlob(c,q){ return new Promise(r=>c.toBlob(r,'image/jpeg',q)); }
+let adding=0;
+async function addFiles(kind, files){
+  const work=document.createElement('canvas');
+  const list = photos[kind]; let failed=0; adding++;
+  for(let n=0;n<files.length;n++){
+    const file=files[n];
+    if(files.length>1) setMsg('กำลังเพิ่มภาพ '+(n+1)+' / '+files.length+' …');
+    const src=URL.createObjectURL(file);
+    try{
+      const img=await loadImg(src);
+      const s=Math.min(1, 1400/Math.max(img.naturalWidth,img.naturalHeight));
+      work.width=Math.round(img.naturalWidth*s); work.height=Math.round(img.naturalHeight*s);
+      work.getContext('2d').drawImage(img,0,0,work.width,work.height);
+      const blob=await toBlob(work,0.85);
+      if(!blob) throw new Error('encode');
+      list.push({ url:URL.createObjectURL(blob), blob, date: await exifDate(file) });
+      if(n%4===3) render(kind);
+    }catch(e){ failed++; }
+    finally{ URL.revokeObjectURL(src); }
+  }
+  work.width=work.height=1;
+  adding--; render(kind);
+  setMsg(failed?'เปิดภาพไม่ได้ '+failed+' ภาพ ลองเลือกภาพ JPG หรือ PNG':'', failed?'bad':'');
+}
+function render(kind){
+  const box=$('t-'+kind); box.textContent='';
+  photos[kind].forEach((p,i)=>{
+    const d=document.createElement('div'); d.className='thumb';
+    const im=document.createElement('img'); im.src=p.url; im.alt=''; d.appendChild(im);
+    if(p.date){ const s=document.createElement('span'); s.className='date'; s.textContent=thDate(p.date); d.appendChild(s); }
+    const b=document.createElement('button'); b.type='button'; b.setAttribute('aria-label','ลบภาพที่ '+(i+1)); b.textContent='×';
+    b.onclick=()=>{ URL.revokeObjectURL(p.url); photos[kind].splice(i,1); render(kind); };
+    d.appendChild(b); box.appendChild(d);
+  });
+  $('c-'+kind).textContent=photos[kind].length+' ภาพ';
+}
+['flood','dry'].forEach(k=>$('in-'+k).addEventListener('change',e=>{ addFiles(k,[...e.target.files]); e.target.value=''; }));
+
+/* ---------- validation ---------- */
+function validate(){
+  const bad=[];
+  ['house','tambon','amphoe','name'].forEach(k=>{ if(!$(k).value.trim()){ $(k).classList.add('invalid'); bad.push(k);} });
+  if(!getStatus()){ $('status-wrap').classList.add('invalid'); bad.push('status'); }
+  if(!bad.length && photos.flood.length+photos.dry.length===0) return 'กรุณาแนบภาพอย่างน้อย 1 ภาพ';
+  if(bad.length){ const el=bad[0]==='status'?$('status-wrap'):$(bad[0]); el.scrollIntoView({behavior:'smooth',block:'center'}); return 'กรุณากรอกช่องที่มีเครื่องหมาย * ให้ครบ'; }
+  return '';
+}
+
+/* ---------- PDF rendering on canvas (A4 @150dpi) ---------- */
+const W=1240,H=1754,M=96, CW=W-2*M, BOTTOM=H-110;
+const FONT='"Sarabun", "Noto Sans Thai", sans-serif';
+const seg = (typeof Intl!=='undefined' && Intl.Segmenter) ? new Intl.Segmenter('th',{granularity:'word'}) : null;
+function tokens(s){ return seg ? [...seg.segment(s)].map(x=>x.segment) : s.split(/(\s+)/); }
+function wrap(ctx,text,maxW){
+  const lines=[]; let cur='';
+  for(const t of tokens(text)){
+    if(ctx.measureText(cur+t).width<=maxW){ cur+=t; continue; }
+    if(cur.trim()) lines.push(cur.trim()); cur=t.trimStart();
+    while(ctx.measureText(cur).width>maxW){ let n=cur.length; while(n>1 && ctx.measureText(cur.slice(0,n)).width>maxW) n--; lines.push(cur.slice(0,n)); cur=cur.slice(n); }
+  }
+  if(cur.trim()) lines.push(cur.trim()); return lines;
+}
+function addressText(){
+  const v=k=>$(k).value.trim(); const parts=['บ้านเลขที่ '+v('house')];
+  if(v('moo')) parts.push('หมู่ '+v('moo'));
+  if(v('soi')) parts.push(v('soi'));
+  parts.push('ตำบล'+v('tambon'),'อำเภอ'+v('amphoe'),'จังหวัดระยอง'); return parts.join(' ');
+}
+/* Layout runs twice: a dry pass counts pages, then the real pass draws one page at a time
+   into a single reused canvas and adds it to the PDF right away, so memory stays flat
+   however many photos there are. */
+async function decode(p){
+  if(window.createImageBitmap){ try{ return await createImageBitmap(p.blob); }catch(e){} }
+  return await loadImg(p.url);
+}
+async function layout(draw, total, onPage){
+  const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  let page=0, y;
+  const name=$('name').value.trim(), status=getStatus(), owner=$('owner').value.trim();
+  const finish=async()=>{
+    if(!page) return;
+    ctx.font='400 22px '+FONT; ctx.fillStyle='#55666A'; ctx.textAlign='center';
+    ctx.fillText('หน้า '+page+' / '+total,W/2,H-60); ctx.textAlign='left';
+    if(draw) await onPage(canvas,page);
+  };
+  const newPage=async()=>{
+    await finish(); page++;
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.textBaseline='alphabetic';
+    if(page>1){
+      ctx.fillStyle='#55666A'; ctx.font='400 22px '+FONT;
+      ctx.fillText('รายงานความเสียหายจากอุทกภัย · บ้านเลขที่ '+$('house').value.trim()+' · '+name, M, 70);
+      ctx.strokeStyle='#C9D3D3'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(M,88); ctx.lineTo(W-M,88); ctx.stroke();
+      y=124;
+    }
+  };
+  await newPage();
+  /* header block */
+  ctx.fillStyle='#55666A'; ctx.font='400 22px '+FONT; ctx.fillText('เอกสารแนบประกอบแบบคำร้อง',M,78);
+  ctx.textAlign='right'; ctx.fillText('จัดทำเมื่อ '+thDate(new Date()),W-M,78); ctx.textAlign='left';
+  ctx.fillStyle='#0B3D46'; ctx.font='700 46px '+FONT; ctx.textAlign='center'; ctx.fillText('รายงานความเสียหายจากอุทกภัย',W/2,150); ctx.textAlign='left';
+  ctx.strokeStyle='#0B5D6B'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(M,180); ctx.lineTo(W-M,180); ctx.stroke();
+  y=232;
+  const rows=[['ที่อยู่',addressText()],['ผู้ยื่นคำร้อง',name],['สถานะผู้ยื่นคำร้อง',status]];
+  if((status==='ผู้เช่า'||status==='ผู้อาศัย') && owner) rows.push(['ชื่อเจ้าบ้าน',owner]);
+  rows.push(['จำนวนภาพ','ขณะน้ำท่วม '+photos.flood.length+' ภาพ · หลังน้ำลด '+photos.dry.length+' ภาพ']);
+  const LW=250;
+  for(const [k,val] of rows){
+    ctx.font='600 28px '+FONT; ctx.fillStyle='#55666A'; ctx.fillText(k,M,y);
+    ctx.font='400 30px '+FONT; ctx.fillStyle='#13262B';
+    const ls=wrap(ctx,val,CW-LW); ls.forEach((l,i)=>ctx.fillText(l,M+LW,y+i*44)); y+=Math.max(1,ls.length)*44+10;
+  }
+  ctx.strokeStyle='#C9D3D3'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(M,y); ctx.lineTo(W-M,y); ctx.stroke(); y+=50;
+
+  /* photo sections */
+  const GAP=30, COLW=(CW-GAP)/2, IMGH=400, CAPH=44, CELL=IMGH+CAPH+22;
+  const sections=[['flood','ภาพขณะน้ำท่วม','#2F6FA3'],['dry','ภาพหลังน้ำลด','#8A6A2E']];
+  for(const [kind,label,color] of sections){
+    const list=photos[kind];
+    if(y+60+(list.length?CELL:50)>BOTTOM) await newPage();
+    ctx.fillStyle=color; ctx.fillRect(M,y-30,10,38);
+    ctx.font='700 34px '+FONT; ctx.fillText(label,M+26,y); y+=34;
+    if(!list.length){ ctx.font='400 26px '+FONT; ctx.fillStyle='#55666A'; ctx.fillText('ไม่มีภาพแนบ',M+26,y+20); y+=80; continue; }
+    for(let i=0;i<list.length;i+=2){
+      if(y+CELL>BOTTOM){ await newPage(); ctx.font='600 26px '+FONT; ctx.fillStyle=color; ctx.fillText(label+' (ต่อ)',M,y); y+=24; }
+      for(let j=0;j<2 && i+j<list.length;j++){
+        const p=list[i+j], x=M+j*(COLW+GAP);
+        ctx.fillStyle='#F1F4F4'; ctx.fillRect(x,y,COLW,IMGH);
+        if(draw){
+          const im=await decode(p); const iw=im.width||im.naturalWidth, ih=im.height||im.naturalHeight;
+          const sc=Math.min(COLW/iw,IMGH/ih), dw=iw*sc, dh=ih*sc;
+          ctx.drawImage(im,x+(COLW-dw)/2,y+(IMGH-dh)/2,dw,dh);
+          if(im.close) im.close();
+        }
+        ctx.strokeStyle='#C9D3D3'; ctx.lineWidth=2; ctx.strokeRect(x,y,COLW,IMGH);
+        ctx.font='600 24px '+FONT; ctx.fillStyle='#13262B';
+        const cap=label+' '+(i+j+1)+(p.date?'  ·  ถ่ายเมื่อ '+thDate(p.date,true):'');
+        ctx.fillText(wrap(ctx,cap,COLW)[0]||'',x,y+IMGH+34);
+      }
+      y+=CELL;
+    }
+    y+=24;
+  }
+
+  /* certification + signature */
+  if(y+300>BOTTOM) await newPage();
+  y+=20;
+  ctx.font='400 28px '+FONT; ctx.fillStyle='#13262B';
+  wrap(ctx,'ข้าพเจ้าขอรับรองว่าภาพถ่ายในเอกสารนี้เป็นภาพบ้านตามที่อยู่ข้างต้น และเป็นความจริงทุกประการ',CW).forEach(l=>{ctx.fillText(l,M,y);y+=42;});
+  y+=70;
+  const sx=W-M-520;
+  ctx.fillText('ลงชื่อ ......................................................... ผู้ยื่นคำร้อง',sx-40,y);
+  ctx.textAlign='center'; ctx.fillText('( '+name+' )',sx+240,y+52); ctx.fillText('วันที่ ........ / ........ / ............',sx+240,y+104); ctx.textAlign='left';
+  await finish();
+  canvas.width=canvas.height=1;
+  return page;
+}
+
+const PREVIEW_MAX=12;
+async function buildPdf(){
+  await Promise.all([document.fonts.load('400 28px Sarabun'),document.fonts.load('700 28px Sarabun'),document.fonts.load('600 28px Sarabun')]).catch(()=>{});
+  const total=await layout(false,0);
+  const { jsPDF } = window.jspdf;
+  const doc=new jsPDF({orientation:'p',unit:'mm',format:'a4',compress:true});
+  const previews=[]; const small=document.createElement('canvas'); small.width=310; small.height=438;
+  await layout(true,total,async(canvas,n)=>{
+    setMsg('กำลังสร้างหน้า '+n+' / '+total+' …');
+    if(n>1) doc.addPage();
+    doc.addImage(canvas.toDataURL('image/jpeg',0.82),'JPEG',0,0,210,297,'p'+n,'FAST');
+    if(n<=PREVIEW_MAX){ small.getContext('2d').drawImage(canvas,0,0,310,438); previews.push(small.toDataURL('image/jpeg',0.7)); }
+    await new Promise(r=>setTimeout(r,0));
+  });
+  return { blob:doc.output('blob'), previews, total };
+}
+
+/* ---------- saving ---------- */
+let dl; // claude downloads capability (only inside claude.ai viewer)
+const dlReady = (window.claude && window.claude.use) ? window.claude.use('downloads').then(x=>dl=x).catch(()=>dl=null) : Promise.resolve(null);
+async function savePdf(){
+  if(!lastPdf) return;
+  await dlReady;
+  if(dl){
+    try{ await dl.save({filename:lastName,data:lastPdf}); setMsg('บันทึก PDF แล้ว','good'); }
+    catch(e){ setMsg(e && e.code==='declined' ? 'ยกเลิกการบันทึก กด "บันทึก PDF อีกครั้ง" ได้' : 'บันทึกไฟล์ไม่ได้ในหน้านี้','bad'); }
+    return;
+  }
+  const url=URL.createObjectURL(lastPdf); const a=document.createElement('a');
+  a.href=url; a.download=lastName; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  setMsg('ดาวน์โหลด PDF แล้ว ดูได้ในโฟลเดอร์ดาวน์โหลด','good');
+}
+function setMsg(t,cls){ const m=$('msg'); m.textContent=t||''; m.className='msg'+(cls?' '+cls:''); }
+
+$('f').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(adding){ setMsg('รอให้เพิ่มภาพเสร็จก่อน แล้วกดอีกครั้ง','bad'); return; }
+  const err=validate(); if(err){ setMsg(err,'bad'); return; }
+  if(!window.jspdf){ setMsg('โหลดตัวสร้าง PDF ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่','bad'); return; }
+  const go=$('go'); go.disabled=true; go.textContent='กำลังสร้าง PDF…'; setMsg('');
+  try{
+    const out=await buildPdf();
+    lastPdf=out.blob;
+    lastName=('รายงานความเสียหาย_บ้านเลขที่'+$('house').value.trim()).replace(/[\/\\:*?"<>|\s]+/g,'-')+'.pdf';
+    const box=$('pages'); box.textContent='';
+    out.previews.forEach((src,i)=>{ const im=document.createElement('img'); im.src=src; im.alt='หน้า '+(i+1); box.appendChild(im); });
+    $('page-count').textContent=out.total+' หน้า'+(out.total>PREVIEW_MAX?' (แสดง '+PREVIEW_MAX+' หน้าแรก)':'');
+    $('result').hidden=false;
+    $('result').scrollIntoView({behavior:'smooth',block:'start'});
+    await savePdf();
+  }catch(ex){ console.error(ex); setMsg('สร้าง PDF ไม่สำเร็จ ลองปิดแอปอื่นแล้วกดอีกครั้ง หรือแบ่งภาพเป็น 2 ชุด','bad'); }
+  finally{ go.disabled=false; go.textContent='สร้าง PDF'; }
+});
+$('save-again').addEventListener('click',savePdf);
+})();
+</script>
+
+</body>
+</html>
